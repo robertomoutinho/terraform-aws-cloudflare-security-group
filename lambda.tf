@@ -69,7 +69,7 @@ data "archive_file" "lambda_zip" {
 }
 
 resource "aws_lambda_function" "update-ips" {
-  function_name    = "UpdateCloudflareIps"
+  function_name    = "${var.environment}-UpdateCloudflareIps"
   filename         = "${path.module}/lambda.zip"
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
   handler          = "cloudflare-security-group.lambda_handler"

@@ -12,7 +12,6 @@ resource "aws_cloudwatch_event_rule" "cloudflare-update-schedule" {
   schedule_expression = var.schedule_expression
 }
 
-
 resource "aws_cloudwatch_event_target" "cloudflare-update-schedule" {
   rule = aws_cloudwatch_event_rule.cloudflare-update-schedule.name
   arn  = aws_lambda_function.update-ips.arn
