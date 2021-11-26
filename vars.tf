@@ -1,11 +1,26 @@
-variable "security_group_id" {
-  description = "An existing security group to populate with cloudflare ips as ingress rules."
+variable "vpc_id" {
+  description = "ID of an existing VPC where resources will be created"
+  type        = string
 }
-variable "enabled" {
-  description = "Whether to do anything at all, useful if cloudflare is not needed on all environments. Accepts the string 'true' or 'false'."
-  default     = "true"
+
+variable "environment" {
+  type        = string
+  description = "The name of the environment"
 }
+
+variable "tags" {
+  description = "A map of tags to use on all resources"
+  type        = map(string)
+}
+
 variable "schedule_expression" {
   description = "The cloudwatch schedule expression used to run the updater lambda."
+  type        = string
   default     = "cron(0 20 * * ? *)"
+}
+
+variable "allowed_ports" {
+  description = "A list of ports to allow ingress from cloudflare"
+  type        = list(number)
+  default     = [80, 443]
 }

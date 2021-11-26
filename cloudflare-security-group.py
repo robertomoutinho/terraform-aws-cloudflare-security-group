@@ -91,7 +91,7 @@ def lambda_handler(event, context):
     """aws lambda main func"""
     ports = [int(x) for x in os.environ.get('PORTS_LIST', '').split(",") if x]
     if not ports:
-        ports = [80,443]
+        ports = os.environ['ALLOWED_PORTS']
 
     security_group = get_aws_security_group(os.environ['SECURITY_GROUP_ID'])
     current_rules = security_group.ip_permissions
