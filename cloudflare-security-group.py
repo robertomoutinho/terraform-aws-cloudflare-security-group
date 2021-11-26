@@ -3,6 +3,7 @@ import boto3
 import ipaddress
 import urllib3
 import json
+import ast
 from botocore.vendored import requests
 from datetime import datetime
 
@@ -91,7 +92,7 @@ def lambda_handler(event, context):
     """aws lambda main func"""
     ports = [int(x) for x in os.environ.get('PORTS_LIST', '').split(",") if x]
     if not ports:
-        ports = os.environ['ALLOWED_PORTS']
+        ports = ast.literal_eval(os.environ['ALLOWED_PORTS'])
 
     security_group = get_aws_security_group(os.environ['SECURITY_GROUP_ID'])
     current_rules = security_group.ip_permissions
@@ -101,10 +102,10 @@ def lambda_handler(event, context):
     for ip_address in ip_addresses:
         for port in ports:
             if not check_rule_exists(current_rules, ip_address, port):
-                add_rule(security_group, ip_address, port)
+                add_rule(security_group, ip_address, int(port))
 
     ## Remove IPs from SG that are not in list
     for ip_address in get_existing_ip_addresses(current_rules):
         if (ip_address not in ip_addresses):
             for port in ports:
-                remove_rule(security_group, ip_address, port)
+                remove_rule(security_group, ip_address, int(port))
