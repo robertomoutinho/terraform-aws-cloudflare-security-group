@@ -12,24 +12,34 @@ Usage
 -----
 
 ```hcl
-module "cloudflare-ips" {
-  source = "github.com/orzarchi/terraform-aws-cloudflare-security-group"
+module "cloudflare-security-group" {
 
-  security_group_id = "${aws_security_group.cloudflare.id}"
-  enabled= "${var.use_cloudflare}"
+  source  = "robertomoutinho/cloudflare-security-group/aws"
+  
+  vpc_id        = "vpc-123456"
+  environment   = "staging"
+  tags          = {
+    Environment = "staging"
+    CostCenter  = "devsecops"
+  }
+  allowed_ports = [80, 443]
+
 }
 ```
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
 
-No requirements.
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 0.14.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 3.36.0, < 4.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
 | <a name="provider_archive"></a> [archive](#provider\_archive) | n/a |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | n/a |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 3.36.0, < 4.0 |
 
 ## Modules
 
@@ -63,12 +73,7 @@ No requirements.
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| <a name="output_security_group_id"></a> [security\_group\_id](#output\_security\_group\_id) | The SG ID where the cloudflare rules will be populated |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
-Variables
---------
-
-* security_group_id: An existing security group to populate with cloudflare ips as ingress rules.
-* schedule_expression: The cloudwatch schedule expression used to run the updater lambda. Defaults to every day at 20:00.
-* enabled (Optional) - whether to do anything at all, useful if cloudflare is not needed on all environments. 
-Accepts the string "true" or "false". Defaults to "true"
