@@ -24,3 +24,12 @@ variable "allowed_ports" {
   type        = list(number)
   default     = [80, 443]
 }
+
+variable "s3_bucket_policy_targets" {
+  description = "S3 buckets whose policy the updater lambda should keep current with Cloudflare's IP ranges. Each entry needs a `bucket` name and a `policy_template`: the complete bucket policy as JSON, with the sentinel string `__CLOUDFLARE_IP_RANGES__` where the CIDR list belongs. Empty by default. The lambda becomes the policy's sole writer, so do not also manage it in terraform. See the S3 bucket policies section of the README."
+  type = list(object({
+    bucket          = string
+    policy_template = string
+  }))
+  default = []
+}

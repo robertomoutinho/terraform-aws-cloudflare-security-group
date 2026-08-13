@@ -4,8 +4,12 @@ import ipaddress
 import urllib3
 import json
 import ast
-from botocore.vendored import requests
+from botocore.exceptions import ClientError
 from datetime import datetime
+
+# Sentinel the caller puts in policy_template wherever the CIDR list belongs.
+# Replaced with a JSON array of Cloudflare's current ranges.
+IP_RANGE_SENTINEL = "__CLOUDFLARE_IP_RANGES__"
 
 def get_cloudflare_ip_list():
     """Call the CloudFlare API and return a list of IPs"""
@@ -88,6 +92,77 @@ def remove_rule(group, address, port):
     print("Removed %s : %i  " % (address, port))
 
 
+def get_s3_bucket_policy_targets():
+    """Return the configured S3 bucket policy targets, or [] if unconfigured.
+
+    Absent and empty are both normal: the feature is opt-in and every consumer
+    that predates it leaves the variable at its default.
+    """
+    raw = os.environ.get('S3_BUCKET_POLICY_TARGETS', '').strip()
+    if not raw:
+        return []
+    return json.loads(raw)
+
+
+def render_ip_ranges(node, ip_addresses):
+    """Recursively replace the sentinel string with the CIDR list.
+
+    Walks the parsed policy rather than doing text substitution on the raw
+    JSON, so the CIDR list cannot break the document's quoting or escaping and
+    the sentinel can sit at any depth.
+    """
+    if isinstance(node, dict):
+        return {k: render_ip_ranges(v, ip_addresses) for k, v in node.items()}
+    if isinstance(node, list):
+        return [render_ip_ranges(v, ip_addresses) for v in node]
+    if node == IP_RANGE_SENTINEL:
+        return list(ip_addresses)
+    return node
+
+
+def update_s3_bucket_policies(targets, ip_addresses):
+    """Render each target's policy template and PUT it if it changed."""
+    if not targets:
+        return
+
+    if not ip_addresses:
+        # Never write an empty allowlist. An upstream hiccup that returned no
+        # ranges would otherwise lock Cloudflare out of every bucket at once.
+        raise Exception('Refusing to update bucket policies with an empty IP list')
+
+    s3 = boto3.client('s3')
+
+    for target in targets:
+        bucket = target['bucket']
+        template = json.loads(target['policy_template'])
+        desired = render_ip_ranges(template, ip_addresses)
+
+        if IP_RANGE_SENTINEL in json.dumps(desired):
+            raise Exception(
+                'Sentinel %s still present after rendering policy for %s'
+                % (IP_RANGE_SENTINEL, bucket)
+            )
+
+        try:
+            current = json.loads(
+                s3.get_bucket_policy(Bucket=bucket)['Policy']
+            )
+        except ClientError as error:
+            # NoSuchBucketPolicy is not a modelled S3 exception, so it cannot be
+            # caught as s3.exceptions.NoSuchBucketPolicy -- check the code.
+            if error.response['Error']['Code'] != 'NoSuchBucketPolicy':
+                raise
+            # First run after the bucket was created. Expected, not an error.
+            current = None
+
+        if current == desired:
+            print("Bucket policy already current: %s" % bucket)
+            continue
+
+        s3.put_bucket_policy(Bucket=bucket, Policy=json.dumps(desired))
+        print("Updated bucket policy: %s (%i ranges)" % (bucket, len(ip_addresses)))
+
+
 def lambda_handler(event, context):
     """aws lambda main func"""
     ports = [int(x) for x in os.environ.get('PORTS_LIST', '').split(",") if x]
@@ -109,3 +184,7 @@ def lambda_handler(event, context):
         if (ip_address not in ip_addresses):
             for port in ports:
                 remove_rule(security_group, ip_address, int(port))
+
+    ## Bucket policies last, so a failure here cannot leave the security group
+    ## half-updated. Existing consumers configure no targets and skip this.
+    update_s3_bucket_policies(get_s3_bucket_policy_targets(), ip_addresses)
